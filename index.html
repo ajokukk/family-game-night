@@ -711,7 +711,7 @@ const GAMES=[
   how:['2 to 6 players start with ₦1,500k each. Roll two dice on your turn and move around the board of Lagos areas.','Land on an unowned area, bus terminal or utility and you can buy it. Land on someone else\'s and you pay them rent.','Own every area of one colour to double its rent. Then tap one of your areas to build floors on it (up to 3), which raise the rent a lot.','Doubles give you another roll. Three doubles in a row, a Go to Jail square, or some cards send you to jail. Pay ₦50k or roll doubles to get out.','Owambe and Lagos Luck squares draw a card. Passing Start pays ₦150k.','If you cannot pay, you are bankrupt and out. The last player in wins 5 coins. The game also ends after 25 rounds, or when the host ends it: the richest player wins.']},
  {id:'ayo',name:'Ayo Olopon',tab:'Ayo',tc:'orange',ic:'A',col:'#FFB65C',desc:'Sow seeds, capture pits',min:2,kw:'ayo olopon awele nchoro ncho nacho mancala oware seeds yoruba igbo traditional board',safe:['end'],
   mini:`<div class="mini"><svg viewBox="0 0 54 22" style="width:3.6rem;height:1.6rem;box-shadow:none;border-radius:0"><rect x="1" y="1" width="52" height="20" rx="7" fill="#B8782A"/><circle cx="10" cy="7" r="4" fill="#6B3A0E"/><circle cx="22" cy="7" r="4" fill="#6B3A0E"/><circle cx="34" cy="7" r="4" fill="#6B3A0E"/><circle cx="46" cy="7" r="4" fill="#6B3A0E"/><circle cx="10" cy="15" r="4" fill="#6B3A0E"/><circle cx="22" cy="15" r="4" fill="#6B3A0E"/><circle cx="34" cy="15" r="4" fill="#6B3A0E"/><circle cx="46" cy="15" r="4" fill="#6B3A0E"/><circle cx="10" cy="7" r="1.6" fill="#8A97A0"/><circle cx="34" cy="15" r="1.6" fill="#8A97A0"/></svg></div>`,
-  how:['Also called Ayo Olopon (Yoruba), Nchoro or Ncho (Igbo), Awele and Nacho. There are 12 pits with 4 seeds in each, 48 seeds in all.','Pits are shared out equally between players: 2, 3, 4, 6 or 12 can play. The coloured rim shows who owns each pit. If more people join, extra people watch.','On your turn, tap one of your glowing pits. All its seeds are dropped one by one into the next pits, going round counter-clockwise (the way the arrow shows).','Whenever a pit fills up to exactly 4 seeds, those 4 seeds are taken out. The owner of the pit takes them. But if your run ends in that pit, you take them, even if it is an opponent\'s pit. The starting 4 seeds do not count, only a pit that fills back up to 4.','A player with no seeds is skipped. If only one player has seeds left, they keep them and the game ends.','Get 25 or more seeds to win straight away. Otherwise the most captured seeds wins. The winner gets 5 coins.']}
+  how:['Also called Ayo Olopon (Yoruba), Nchoro or Ncho (Igbo), Awele and Nacho. There are 12 pits with 4 seeds in each, 48 seeds in all.','Pits are shared out equally between players: 2, 3, 4, 6 or 12 can play. The coloured rim shows who owns each pit. If more people join, extra people watch.','On your turn, tap one of your glowing pits. All its seeds are dropped one by one into the next pits, going round counter-clockwise (the way the arrow shows).','Look at where your last seed lands. In an empty pit: your turn ends. In a pit that now holds exactly 4: you take those 4 seeds and your turn ends. In any other pit with seeds: pick up everything in that pit, even an opponent\'s, and keep sowing.','If a pit fills up to 4 in the middle of your run, its owner takes the 4. The starting 4 seeds do not count, only a pit that fills back up to 4.','A player with no seeds is skipped. If only one player has seeds left, they keep them and the game ends.','Get 25 or more seeds to win straight away. Otherwise the most captured seeds wins. The winner gets 5 coins.']}
 ];
 /* ---------- standalone transport: MQTT over secure WebSocket (public brokers) ---------- */
 const CODE_ALPHA='ABCDEFGHJKLMNPQRSTUVWXYZ';
@@ -875,7 +875,7 @@ function act(t,x){const d=Object.assign({t},x||{});if(isHost())handle(G.myId,d);
 function sendSt(){
   const S=G.S;if(!S||!G.room)return;
   if(S.ph==='play'&&HP.end)S.rem=Math.max(0,HP.end-Date.now());else delete S.rem;
-  while(new TextEncoder().encode(JSON.stringify(S)).length>3800&&S.lg&&S.lg.length>2)S.lg.shift();
+  while(new TextEncoder().encode(JSON.stringify(S)).length>3800&&Array.isArray(S.lg)&&S.lg.length>2)S.lg.shift();
   G.room.emit('st',S).catch(()=>{});
 }
 function pub(){const S=G.S;S.s++;if(S.ph==='play'&&HP.end)G.dl=HP.end;else G.dl=0;sendSt();afterState();render()}
@@ -1304,7 +1304,7 @@ function ayoStart(){
   if(!n){toast('Ayo needs at least 2 players.');return}
   const pl=all.slice(0,n);HP={};const S=reset('ayo');
   S.pl=pl;S.pt=Array(12).fill(4);S.cp={};pl.forEach(id=>S.cp[id]=0);
-  S.t=0;S.ph='play';S.mn=0;S.lp=[];S.lk='';S.lc=[];S.lf=-1;S.wn=null;S.wt=[];S.lg='';pub();
+  S.t=0;S.ph='play';S.mn=0;S.lp=[];S.lk='';S.lo=[];S.lc=[];S.lf=-1;S.wn=null;S.wt=[];S.lg='';pub();
 }
 const ayoOwner=(S,i)=>S.pl[Math.floor(i/(12/S.pl.length))];
 const ayoHeld=(S,id)=>S.pt.reduce((a,v,i)=>a+(ayoOwner(S,i)===id?v:0),0);
@@ -1321,27 +1321,34 @@ function ayoAdvance(){
   ayoEnd();
 }
 function ayoRun(S,from,i){
-  const pt=S.pt.slice();let n=pt[i],p=i;pt[i]=0;
-  const sown=[],lk=[],caps={},cap=[];
-  while(n>0){
-    p=(p+1)%12;if(p===i)continue;
-    pt[p]++;n--;sown.push(p);
-    let hit=0;
-    if(pt[p]===4){ /* a pit that fills up to 4 is taken: by its owner, unless the run ends here, then by the mover */
-      const taker=n===0?from:ayoOwner(S,p);caps[taker]=(caps[taker]||0)+4;pt[p]=0;cap.push(p);hit=1;
+  /* One turn = a chain of runs. A run sows all seeds of a pit. Where the last seed lands decides:
+     empty pit -> turn ends; pit now holds exactly 4 -> mover takes it, turn ends;
+     any other pit with seeds -> pick them all up and sow again. A pit filling to 4 mid-run goes to its owner. */
+  const pt=S.pt.slice(),sown=[],lk=[],picks=[],caps={},cap=[];
+  let cur=i,runs=0;
+  for(;;){
+    let n=pt[cur],p=cur;pt[cur]=0;picks.push([sown.length,cur]);
+    while(n>0){
+      p=(p+1)%12;if(p===cur)continue;
+      pt[p]++;n--;sown.push(p);
+      let hit=0;
+      if(pt[p]===4){const taker=n===0?from:ayoOwner(S,p);caps[taker]=(caps[taker]||0)+4;pt[p]=0;cap.push(p);hit=1}
+      lk.push(hit);
     }
-    lk.push(hit);
+    if(lk[lk.length-1]===1||pt[p]===1)break;
+    if(++runs>=40||sown.length>150)break;
+    cur=p;
   }
-  return {pt,sown,lk,caps,cap};
+  return {pt,sown,lk,picks,caps,cap};
 }
 function ayoMove(from,i){
   const S=G.S;
   if(S.ph!=='play'||S.pl[S.t]!==from||i<0||i>11||ayoOwner(S,i)!==from||!S.pt[i])return;
   const r=ayoRun(S,from,i);
-  S.pt=r.pt;S.mn++;S.lp=r.sown;S.lk=r.lk.join('');S.lc=r.cap;S.lf=i;
+  S.pt=r.pt;S.mn++;S.lp=r.sown;S.lk=r.lk.join('');S.lo=r.picks;S.lc=r.cap;S.lf=i;
   const parts=Object.keys(r.caps).map(id=>nameOf(id)+' took '+(r.caps[id]/4>1?r.caps[id]/4+' houses':'a house'));
   Object.keys(r.caps).forEach(id=>S.cp[id]+=r.caps[id]);
-  S.lg=nameOf(from)+' sowed '+r.sown.length+(r.sown.length===1?' seed':' seeds')+(parts.length?'. '+parts.join(', ')+'.':'.');
+  S.lg=nameOf(from)+' sowed '+r.sown.length+(r.sown.length===1?' seed':' seeds')+(r.picks.length>1?' in '+r.picks.length+' runs':'')+(parts.length?'. '+parts.join(', ')+'.':'.');
   if(S.cp[from]>=25||Object.values(S.cp).some(v=>v>=25)){ayoEnd();return}
   const holders=S.pl.filter(id=>ayoHeld(S,id)>0);
   if(holders.length<=1||S.mn>=300){ayoEnd();return}
@@ -1513,17 +1520,21 @@ function ayoAnim(S){
   const prev=AN.aypt;AN.aymn=S.mn;AN.aypt=S.pt.slice();
   clearInterval(AN.ayt);AN.ay=null;
   if(S.ph==='end'||rm()||!S.lp||!S.lp.length||S.lf<0)return;
-  const disp=prev.slice();disp[S.lf]=0;
+  const disp=prev.slice(),tl=[],picks=S.lo||[[0,S.lf]];
+  S.lp.forEach((p,k)=>{picks.forEach(([pk,pit])=>{if(pk===k)tl.push({pick:pit})});tl.push({drop:p,cap:S.lk[k]==='1'})});
   AN.ay={pt:disp,hot:-1,cap:-1,pend:-1};
-  AN.busy=Date.now()+S.lp.length*230+500;
-  let k=0;paintAyo();
+  AN.busy=Date.now()+tl.length*230+500;
+  let k=0;
+  const first=tl[0];if(first&&first.pick!=null){disp[first.pick]=0;k=1}
+  paintAyo();
   AN.ayt=setInterval(()=>{
     const A=AN.ay;if(!A){clearInterval(AN.ayt);return}
     if(A.pend>=0){disp[A.pend]=0;A.pend=-1}
-    if(k<S.lp.length){
-      const p=S.lp[k];disp[p]++;A.hot=p;A.cap=-1;snd('drop',k);
-      if(S.lk[k]==='1'){A.cap=p;A.pend=p;snd('coin');buzz(20)}
-      k++;paintAyo();
+    if(k<tl.length){
+      const o=tl[k++];A.cap=-1;
+      if(o.pick!=null){disp[o.pick]=0;A.hot=o.pick;snd('tap')}
+      else{disp[o.drop]++;A.hot=o.drop;snd('drop',k);if(o.cap){A.cap=o.drop;A.pend=o.drop;snd('coin');buzz(20)}}
+      paintAyo();
     }else{clearInterval(AN.ayt);AN.ay=null;render()}
   },230);
 }
@@ -2098,6 +2109,14 @@ function lgInfoCard(S,pos){
     canBuild?el('button',{class:'btn green',type:'button',on:{click:()=>act('mh',{q:pos})}},'Build a floor ('+lgK(lgBuildCost(q))+')'):null,
     q.k==='prop'&&o===me&&!lgMono(S,me,q.g)?el('small',{style:'color:var(--brown2)'},'Own every '+q.g+' area to build here.'):null));
 }
+function lgBuildPanel(S,me){
+  const own=lgOwned(S,me).filter(p=>LSQ[p].k==='prop'),sets=own.filter(p=>lgMono(S,me,LSQ[p].g));
+  if(!sets.length)return el('div',{class:'card tabbed'},tab('Build','orange'),note(own.length?'Own every area of one colour to start building floors on it.':'Buy areas to build on. Own a whole colour to add floors, which raise the rent.'));
+  return el('div',{class:'card tabbed'},tab('Build','orange'),
+    el('ul',{class:'rows'},sets.map(p=>{const q=LSQ[p],lv=S.lv[p]|0,c=lgBuildCost(q),can=lv<3&&S.ca[me]>=c;
+      return el('li',{},el('span',{class:'who'},el('span',{class:'lgsw',style:'background:'+LGC[q.g]}),el('span',{},q.n+' · '+lv+'/3')),
+        el('button',{class:'btn green sm',type:'button',disabled:!can,on:{click:()=>act('mh',{q:p})}},lv>=3?'Full':'+ Floor '+lgK(c)))})));
+}
 function vLag(){
   const S=G.S,me=G.myId,pc=id=>LGP[S.pl.indexOf(id)%6];
   const row=(id,extra)=>el('li',{class:extra||''},el('span',{class:'who'},el('span',{class:'ldot',style:'background:'+pc(id)}),avatar(id),el('span',{},nameOf(id)+(id===me?' (you)':''))),el('b',{style:'color:var(--brown)'},S.bk[id]?'Bankrupt':lgK(S.ca[id])+' · '+lgOwned(S,id).length+(lgOwned(S,id).length===1?' area':' areas')));
@@ -2132,6 +2151,7 @@ function vLag(){
       el('div',{style:'display:flex;gap:6px;width:7.5rem;flex:none'},el('div',{id:'lgd0',style:'width:50%',html:ludoDie(AN.rolling?rnd6():S.d[0],'die'+(AN.rolling?' roll':''))}),el('div',{id:'lgd1',style:'width:50%',html:ludoDie(AN.rolling?rnd6():S.d[1],'die'+(AN.rolling?' roll':''))})),
       el('div',{class:'ltxt'},el('span',{},msg),el('small',{},'Round '+rdn+' of '+LG_ROUNDS+(S.d[0]&&S.ph!=='roll'?' · Rolled '+(S.d[0]+S.d[1])+(S.d[0]===S.d[1]?' (doubles)':''):''))))),
     btns.length?el('div',{class:'lgbtns'},btns):null];
+  if(mine&&['roll','after'].includes(S.ph))out.push(lgBuildPanel(S,me));
   if(sel!=null)out.push(lgInfoCard(S,sel));
   out.push(el('div',{class:'card'},el('ul',{class:'lglog'},(S.lg||[]).slice(-5).map(t=>el('li',{},t)))));
   out.push(el('ul',{class:'rows'},S.pl.map(id=>row(id,S.bk[id]?'bad':id===cur?'cur':''))));
