@@ -1,4 +1,4 @@
-# Turning Family Game Night into an installable app
+# Turning Naija Game Night into an installable app
 
 Everything here lives in one GitHub repository: the game page, the install files, and an automatic Android build.
 
