@@ -1,0 +1,1 @@
+{"name":"family-game-night","version":"1.0.0","private":true,"description":"Family Game Night app wrapper","dependencies":{"@capacitor/android":"^6.1.0","@capacitor/cli":"^6.1.0","@capacitor/core":"^6.1.0"}}
